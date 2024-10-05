@@ -1,0 +1,83 @@
+const express = require('express');
+const app = express();
+const PORT = 3000;
+
+const jwt = require('jsonwebtoken');
+const { auth } = require('./middleware');
+const JWT_SECRET = "secret";
+
+const USERS = [];
+const user_id_counter = 1;
+
+const cors = require('cors');
+app.use(cors())
+
+const bodyParser = require('body-parser');
+var jsonParser = bodyParser.json();
+var urlencodedParser = bodyParser.urlencoded({extended: false});
+app.use(jsonParser);
+
+
+const TODOS = [];
+
+const ORGS = [];
+
+
+app.get('/', (req, res) => {
+    res.send("Hello World!");
+    });
+
+
+app.get('/todos', (req, res) => {
+    return res.json(TODOS);
+});
+
+
+app.post('/signup', (req, res) => {
+    const username = req.body.username;
+    const password = req.body.password;
+    const user = USERS.find(x => x.username === username);
+
+    if(user){
+        return res.status(483).json({msg: "User already exists"});
+}
+
+    USERS.push({
+        id: user_id_counter++,
+        username: username,
+        password: password
+        });
+
+    return res.json({msg: "User signed up!"});
+});
+
+
+app.post('/login', (req, res) => {
+    const username = req.body.username;
+    const password = req.body.password;
+    const user = USERS.find(x => x.username === username);
+
+    if(!user){
+        return res.status(483).json({msg: "User does not exist"});
+        }
+
+    if(user.password !== password){
+        return res.status(403).json({msg: "Password does not match"});
+        }
+
+    const token = jwt.sign({
+        id: user.id},
+        JWT_SECRET);
+
+    return res.json(token);
+
+});
+
+
+
+
+
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    });
