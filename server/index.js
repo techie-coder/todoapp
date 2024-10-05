@@ -5,9 +5,7 @@ const PORT = 3000;
 const jwt = require('jsonwebtoken');
 const { auth } = require('./middleware');
 const JWT_SECRET = "secret";
-
-const USERS = [];
-let user_id_counter = 1;
+const bcrypt = require('bcrypt');
 
 const cors = require('cors');
 app.use(cors())
@@ -29,10 +27,7 @@ mongoose.connect(dbURI, {useNewUrlParser: true, useUnifiedTopology: true})
 
 const Todo = require('./models/todos.js');
 
-const TODOS = [];
-let todos_counter = 1;
-
-const ORGS = [];
+const User = require('./models/user.js');
 
 
 app.get('/', (req, res) => {
@@ -40,109 +35,93 @@ app.get('/', (req, res) => {
     });
 
 
-app.get('/todos',async  (req, res) => {
-    try{
-        await Todo.find()
-        .then((result) => {
-            res.send(result);
-        })
-    }
-    catch(err){
-        res.send("error fetching todos");
+app.get('/todos', auth, async (req, res) => {
+    try {
+        const todos = await Todo.find({ userId: req.user.id });
+        res.json(todos);
+    } catch (err) {
+        res.status(500).json({ error: "Error fetching todos" });
     }
 });
 
 
-app.post('/signup', (req, res) => {
-    let username = req.body.username;
-    let password = req.body.password;
-    const user = USERS.find(x => x.username === username);
+app.post('/signup', async (req, res) => {
+    try {
+        const { email, password, organization } = req.body;
+        const existingUser = await User.findOne({ email });
 
-    if(user){
-        return res.status(483).json({msg: "User already exists"});
-}
+        if (existingUser) {
+            return res.status(400).json({ msg: "User already exists" });
+        }
 
-    USERS.push({
-        id: user_id_counter++,
-        username: username,
-        password: password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        const newUser = new User({
+            email,
+            passwordHash: hashedPassword,
+            organization
         });
 
-    return res.json({msg: "User signed up!"});
+        await newUser.save();
+        res.status(201).json({ msg: "User created successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Error creating user" });
+    }
 });
 
 
-app.post('/login', (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password;
-    const user = USERS.find(x => x.username === username);
+app.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const user = await User.findOne({ email });
 
-    if(!user){
-        return res.status(483).json({msg: "User does not exist"});
+        if (!user) {
+            return res.status(404).json({ msg: "User does not exist" });
         }
 
-    if(user.password !== password){
-        return res.status(403).json({msg: "Password does not match"});
+        const isMatch = await bcrypt.compare(password, user.passwordHash);
+        if (!isMatch) {
+            return res.status(400).json({ msg: "Invalid credentials" });
         }
 
-    const token = jwt.sign({
-        id: user.id},
-        JWT_SECRET);
-
-    return res.json(token);
-
-});
-
-
-app.post('/add-todo', auth, async  (req, res) => {
-    try{
-    const { title, body, status, deadline } = req.body;
-    const user = req.user;
-
-    const todo = new Todo({
-        userId: user.id,
-        title,
-        body,
-        status,
-        deadline
-    });
-
-    await todo.save()
-    return res.status(200).json({msg: "Todo created successfully!"});
-    }
-    catch(err){
-        return res.status(483).json({msg: "Failed to create todo!"})
-    }
-
-});
-
-
-app.post('/sample', (req, res) => {
-    const todo = new Todo({
-        userId: "1",
-        title: "Drink water",
-        body: "Don't forget to drink water",
-        status: "pending",
-        dead
-    })
-});
-
-app.delete('/delToDo', auth, (req, res) => {
-    const content = req.body.content;
-    const initialLength = TODOS.length;
-    TODOS = TODOS.filter(todo => !(x => x.content === content && x.userId === req.userId));
-
-    if(TODOS.length < initialLength){
-        return res.json({msg: "Todo deleted"});
-    }else{
-        return res.json({msg: "Todo not found"});
+        const token = jwt.sign({ id: user.id }, JWT_SECRET);
+        res.json({ token });
+    } catch (err) {
+        res.status(500).json({ error: "Login error" });
     }
 });
 
+app.post('/add-todo', auth, async (req, res) => {
+    try {
+        const { title, body, status, deadline } = req.body;
+        const todo = new Todo({
+            userId: req.user.id,
+            title,
+            body,
+            status,
+            deadline
+        });
 
+        await todo.save();
+        res.status(201).json({ msg: "Todo created successfully!" });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to create todo" });
+    }
+});
 
-
+app.delete('/delete-todo/:id', auth, async (req, res) => {
+    try {
+        const todo = await Todo.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
+        if (!todo) {
+            return res.status(404).json({ msg: "Todo not found" });
+        }
+        res.json({ msg: "Todo deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Error deleting todo" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    });
+});
