@@ -13,10 +13,11 @@ const userSchema = new Schema({
         type: String,
         required: true
     },
-    organization: {
-        type: String,
+    organizationIds: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Organization',
         required: false
-    }
+    }]
 }, {timestamps: true});
 
 

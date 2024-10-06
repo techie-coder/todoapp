@@ -29,6 +29,9 @@ const Todo = require('./models/todos.js');
 
 const User = require('./models/user.js');
 
+const Organization = require('./models/organization.js')
+
+const Project = require('./models/project.js')
 
 app.get('/', (req, res) => {
     res.send("Hello World!");
@@ -63,8 +66,9 @@ app.post('/signup', async (req, res) => {
             organization
         });
 
-        await newUser.save();
-        res.status(201).json({ msg: "User created successfully" });
+        await newUser.save()
+        .then(() => {
+            res.status(201).json({ msg: "User created successfully" })})
     } catch (err) {
         res.status(500).json({ error: "Error creating user" });
     }
@@ -121,6 +125,78 @@ app.delete('/delete-todo/:id', auth, async (req, res) => {
         res.status(500).json({ error: "Error deleting todo" });
     }
 });
+
+
+app.get('/organizations', auth, async (req, res) => {
+    try{
+        const organization = await Organization.find({members: [req.user.id]})
+        if(!organization){
+            return res.status(483).json({msg: "No orgs found!"});
+        }
+        return res.json(organization);
+    }
+    catch(err){
+        return res.status(500).json({err});
+    }
+})
+
+
+app.get('/projects/:oid', auth, async (req, res) => {
+    try{
+        const oid = req.params.oid;
+        const project = await Project.find({organizationId: oid});
+        if(!project){
+            return res.status(483).json({msg: "No projects"})
+        }
+        return res.status(200).json(project);
+    }catch(err){
+        return res.status(500).json({err});
+    }
+})
+
+
+app.post('/create-org', auth, async (req, res) => {
+    try{
+        const name = req.body.name;
+        const oid = req.user.id;
+        const members = req.body.members;
+        const projects = req.body.projects;
+
+        const organization = new Organization({
+            name: name,
+            ownerId: oid,
+            members: members,
+            projects: projects
+        })
+
+        await organization.save()
+        .then((result) => res.send(result))
+    }
+    catch(err){
+        return res.json({err})
+    }
+})
+
+
+app.post('/create-project/:oid', auth, async (req, res) => {
+    try{
+        const name = req.body.name;
+        const oid = req.params.oid;
+
+        const project = new Project({
+            name: name,
+            organizationId: oid
+        })
+
+        await project.save()
+        .then((result) => res.send(result))
+    }
+    catch(err){
+        return res.json(err)
+    }
+    }
+)
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

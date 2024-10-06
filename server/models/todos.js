@@ -7,6 +7,11 @@ const todoSchema = new Schema({
         ref: 'User',
         required: true
     },
+    projectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Project',
+        required: false
+    },
     title: {
         type: String,
         required: true
