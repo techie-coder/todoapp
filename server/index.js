@@ -60,17 +60,17 @@ app.post('/signup', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUser = new User({
+        const user = new User({
             email,
             passwordHash: hashedPassword,
             organization
         });
 
-        await newUser.save()
+        await user.save()
         .then(() => {
-            res.status(201).json({ msg: "User created successfully" })})
+            return res.status(201).json({ msg: "User created successfully" })})
     } catch (err) {
-        res.status(500).json({ error: "Error creating user" });
+        return res.status(500).json({ error: "Error creating user" });
     }
 });
 
@@ -129,7 +129,12 @@ app.delete('/delete-todo/:id', auth, async (req, res) => {
 
 app.get('/organizations', auth, async (req, res) => {
     try{
-        const organization = await Organization.find({members: [req.user.id]})
+        const organization = await Organization.findOne({
+      $or: [
+        { members: req.user.id },
+        { ownerId: req.user.id }
+      ]
+    });
         if(!organization){
             return res.status(483).json({msg: "No orgs found!"});
         }
